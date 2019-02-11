@@ -23,11 +23,10 @@ RUN mkdir -p /usr/share/man/man1 \
     echo 'update: --no-document'; \
   } >> /usr/local/etc/gemrc
 
-ENV RUBY_MAJOR 2.5
-ENV RUBY_VERSION 2.5.3
-ENV RUBY_DOWNLOAD_SHA256 1cc9d0359a8ea35fc6111ec830d12e60168f3b9b305a3c2578357d360fcf306f
-ENV RUBYGEMS_VERSION 2.7.8
-ENV BUNDLER_VERSION 1.17.1
+ENV RUBY_MAJOR 2.6
+ENV RUBY_VERSION 2.6.1
+ENV RUBY_DOWNLOAD_SHA256 47b629808e9fd44ce1f760cdf3ed14875fc9b19d4f334e82e2cf25cb2898f2f2
+ENV BUNDLER_VERSION 2.0.1
 
 # some of ruby's build scripts are written in ruby
 #   we purge system ruby later to make sure our final image uses what we just built
@@ -99,8 +98,10 @@ RUN set -ex \
   && cd / \
   && rm -r /usr/src/ruby \
   \
-  && gem update --system "$RUBYGEMS_VERSION" \
+# install bundler
   && gem install bundler --version "$BUNDLER_VERSION" --force \
+# rough smoke test
+  && ruby --version && gem --version && bundle --version \
   && rm -r /root/.gem/
 
 # install things globally, for great justice
@@ -119,7 +120,7 @@ RUN mkdir -p "$GEM_HOME" && chmod 777 "$GEM_HOME"
 ## Node.js
 ##
 
-ENV NODE_VERSION 10.14.1
+ENV NODE_VERSION 10.15.1
 
 RUN buildDeps='xz-utils' \
     && ARCH= && dpkgArch="$(dpkg --print-architecture)" \
@@ -146,6 +147,7 @@ RUN buildDeps='xz-utils' \
       8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600 \
       4ED778F539E3634C779C87C6D7062848A1AB005C \
       A48C2BEE680E841632CD4E44F07496B3EB3C1762 \
+      B9E2F5981AA6E0CD28160D9FF13993A75599653C \
     ; do \
       gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$key" || \
       gpg --batch --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "$key" || \
@@ -164,7 +166,7 @@ RUN buildDeps='xz-utils' \
 ## Yarn
 ##
 
-ENV YARN_VERSION 1.12.3
+ENV YARN_VERSION 1.13.0
 
 RUN set -ex \
   && for key in \
