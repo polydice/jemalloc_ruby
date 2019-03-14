@@ -24,15 +24,31 @@ RUN mkdir -p /usr/share/man/man1 \
   } >> /usr/local/etc/gemrc
 
 ENV RUBY_MAJOR 2.6
-ENV RUBY_VERSION 2.6.1
-ENV RUBY_DOWNLOAD_SHA256 47b629808e9fd44ce1f760cdf3ed14875fc9b19d4f334e82e2cf25cb2898f2f2
+ENV RUBY_VERSION 2.6.2
+ENV RUBY_DOWNLOAD_SHA256 91fcde77eea8e6206d775a48ac58450afe4883af1a42e5b358320beb33a445fa
 ENV BUNDLER_VERSION 2.0.1
+
+# Persistent packages
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    bzip2 \
+    ca-certificates \
+    libffi-dev \
+    libgdbm3 \
+    libgmp-dev \
+    libssl-dev \
+    libyaml-dev \
+    procps \
+    zlib1g-dev \
+    libjemalloc-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 # some of ruby's build scripts are written in ruby
 #   we purge system ruby later to make sure our final image uses what we just built
 RUN set -ex \
   \
-  && buildDeps=' \
+  && savedAptMark="$(apt-mark showmanual)" \
+  && apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     bison \
     dpkg-dev \
@@ -48,19 +64,6 @@ RUN set -ex \
     ruby \
     wget \
     xz-utils \
-  ' \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends \
-    bzip2 \
-    ca-certificates \
-    libffi-dev \
-    libgdbm3 \
-    libssl-dev \
-    libyaml-dev \
-    procps \
-    zlib1g-dev \
-    libjemalloc-dev \
-  && apt-get install -y --no-install-recommends $buildDeps \
   && rm -rf /var/lib/apt/lists/* \
   \
   && wget -O ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-$RUBY_VERSION.tar.xz" \
@@ -91,10 +94,17 @@ RUN set -ex \
   && make -j "$(nproc)" \
   && make install \
   \
-  && dpkg-query --show --showformat '${package}\n' \
-    | grep -P '^libreadline\d+$' \
-    | xargs apt-mark manual \
-  && apt-get purge -y --auto-remove $buildDeps \
+  && apt-mark auto '.*' > /dev/null \
+  && apt-mark manual $savedAptMark \
+  && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
+    | awk '/=>/ { print $(NF-1) }' \
+    | sort -u \
+    | xargs -r dpkg-query --search \
+    | cut -d: -f1 \
+    | sort -u \
+    | xargs -r apt-mark manual \
+  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+  \
   && cd / \
   && rm -r /usr/src/ruby \
   \
@@ -120,7 +130,7 @@ RUN mkdir -p "$GEM_HOME" && chmod 777 "$GEM_HOME"
 ## Node.js
 ##
 
-ENV NODE_VERSION 10.15.1
+ENV NODE_VERSION 10.15.3
 
 RUN buildDeps='xz-utils' \
     && ARCH= && dpkgArch="$(dpkg --print-architecture)" \
