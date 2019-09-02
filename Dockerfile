@@ -9,28 +9,30 @@ ENV LC_ALL C.UTF-8
 
 # man page directory is required for some apt package to succeed
 # skip installing gem documentation
-RUN mkdir -p /usr/share/man/man1 \
-  && mkdir -p /usr/share/man/man2 \
-  && mkdir -p /usr/share/man/man3 \
-  && mkdir -p /usr/share/man/man4 \
-  && mkdir -p /usr/share/man/man5 \
-  && mkdir -p /usr/share/man/man6 \
-  && mkdir -p /usr/share/man/man7 \
-  && mkdir -p /usr/share/man/man8 \
-  && mkdir -p /usr/local/etc \
-  && { \
+RUN set -eux; \
+  mkdir -p /usr/share/man/man1; \
+  mkdir -p /usr/share/man/man2; \
+  mkdir -p /usr/share/man/man3; \
+  mkdir -p /usr/share/man/man4; \
+  mkdir -p /usr/share/man/man5; \
+  mkdir -p /usr/share/man/man6; \
+  mkdir -p /usr/share/man/man7; \
+  mkdir -p /usr/share/man/man8; \
+  mkdir -p /usr/local/etc; \
+  { \
     echo 'install: --no-document'; \
     echo 'update: --no-document'; \
   } >> /usr/local/etc/gemrc
 
 ENV RUBY_MAJOR 2.6
-ENV RUBY_VERSION 2.6.3
-ENV RUBY_DOWNLOAD_SHA256 11a83f85c03d3f0fc9b8a9b6cad1b2674f26c5aaa43ba858d4b0fcc2b54171e1
-ENV BUNDLER_VERSION 2.0.1
+ENV RUBY_VERSION 2.6.4
+ENV RUBY_DOWNLOAD_SHA256 df593cd4c017de19adf5d0154b8391bb057cef1b72ecdd4a8ee30d3235c65f09
+ENV BUNDLER_VERSION 2.0.2
 
 # Persistent packages
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
     bzip2 \
     ca-certificates \
     libffi-dev \
@@ -41,14 +43,16 @@ RUN apt-get update \
     procps \
     zlib1g-dev \
     libjemalloc-dev \
-  && rm -rf /var/lib/apt/lists/*
+  ; \
+  rm -rf /var/lib/apt/lists/*
 
 # some of ruby's build scripts are written in ruby
 #   we purge system ruby later to make sure our final image uses what we just built
-RUN set -ex \
+RUN set -eux; \
   \
-  && savedAptMark="$(apt-mark showmanual)" \
-  && apt-get update && apt-get install -y --no-install-recommends \
+  savedAptMark="$(apt-mark showmanual)"; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
     autoconf \
     bison \
     dpkg-dev \
@@ -64,55 +68,62 @@ RUN set -ex \
     ruby \
     wget \
     xz-utils \
-  && rm -rf /var/lib/apt/lists/* \
+  ; \
+  rm -rf /var/lib/apt/lists/*; \
   \
-  && wget -O ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-$RUBY_VERSION.tar.xz" \
-  && echo "$RUBY_DOWNLOAD_SHA256 *ruby.tar.xz" | sha256sum -c - \
+  wget -O ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-$RUBY_VERSION.tar.xz"; \
+  echo "$RUBY_DOWNLOAD_SHA256 *ruby.tar.xz" | sha256sum --check --strict; \
   \
-  && mkdir -p /usr/src/ruby \
-  && tar -xJf ruby.tar.xz -C /usr/src/ruby --strip-components=1 \
-  && rm ruby.tar.xz \
+  mkdir -p /usr/src/ruby; \
+  tar -xJf ruby.tar.xz -C /usr/src/ruby --strip-components=1; \
+  rm ruby.tar.xz; \
   \
-  && cd /usr/src/ruby \
+  cd /usr/src/ruby; \
   \
 # hack in "ENABLE_PATH_CHECK" disabling to suppress:
 #   warning: Insecure world writable dir
-  && { \
+  { \
     echo '#define ENABLE_PATH_CHECK 0'; \
     echo; \
     cat file.c; \
-  } > file.c.new \
-  && mv file.c.new file.c \
+  } > file.c.new; \
+  mv file.c.new file.c; \
   \
-  && autoconf \
-  && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
-  && ./configure \
+  autoconf; \
+  gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"; \
+  ./configure \
     --build="$gnuArch" \
     --disable-install-doc \
     --enable-shared \
     --with-jemalloc \
-  && make -j "$(nproc)" \
-  && make install \
+  ; \
+  make -j "$(nproc)"; \
+  make install; \
   \
-  && apt-mark auto '.*' > /dev/null \
-  && apt-mark manual $savedAptMark \
-  && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
+  apt-mark auto '.*' > /dev/null; \
+  apt-mark manual $savedAptMark; \
+  find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
     | awk '/=>/ { print $(NF-1) }' \
     | sort -u \
     | xargs -r dpkg-query --search \
     | cut -d: -f1 \
     | sort -u \
     | xargs -r apt-mark manual \
-  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+  ; \
+  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   \
-  && cd / \
-  && rm -r /usr/src/ruby \
-  \
+  cd /; \
+  rm -r /usr/src/ruby; \
+# verify we have no "ruby" packages installed
+  ! dpkg -l | grep -i ruby; \
+  [ "$(command -v ruby)" = '/usr/local/bin/ruby' ]; \
 # install bundler
-  && gem install bundler --version "$BUNDLER_VERSION" --force \
+  gem install bundler --version "$BUNDLER_VERSION" --force; \
 # rough smoke test
-  && ruby --version && gem --version && bundle --version \
-  && rm -r /root/.gem/
+  ruby --version; \
+  gem --version; \
+  bundle --version; \
+  rm -r /root/.gem/
 
 # install things globally, for great justice
 # and don't create ".bundle" in all our apps
@@ -130,7 +141,7 @@ RUN mkdir -p "$GEM_HOME" && chmod 777 "$GEM_HOME"
 ## Node.js
 ##
 
-ENV NODE_VERSION 10.15.3
+ENV NODE_VERSION 10.16.3
 
 RUN buildDeps='xz-utils' \
     && ARCH= && dpkgArch="$(dpkg --print-architecture)" \
@@ -176,7 +187,7 @@ RUN buildDeps='xz-utils' \
 ## Yarn
 ##
 
-ENV YARN_VERSION 1.13.0
+ENV YARN_VERSION 1.17.3
 
 RUN set -ex \
   && for key in \
