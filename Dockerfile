@@ -27,7 +27,7 @@ RUN set -eux; \
 ENV RUBY_MAJOR 2.6
 ENV RUBY_VERSION 2.6.5
 ENV RUBY_DOWNLOAD_SHA256 d5d6da717fd48524596f9b78ac5a2eeb9691753da5c06923a6c31190abe01a62
-ENV BUNDLER_VERSION 2.0.2
+ENV BUNDLER_VERSION 2.1.2
 
 # Persistent packages
 RUN set -eux; \
@@ -141,7 +141,7 @@ RUN mkdir -p "$GEM_HOME" && chmod 777 "$GEM_HOME"
 ## Node.js
 ##
 
-ENV NODE_VERSION 10.16.3
+ENV NODE_VERSION 12.14.0
 
 RUN buildDeps='xz-utils' \
     && ARCH= && dpkgArch="$(dpkg --print-architecture)" \
@@ -187,7 +187,7 @@ RUN buildDeps='xz-utils' \
 ## Yarn
 ##
 
-ENV YARN_VERSION 1.17.3
+ENV YARN_VERSION 1.21.1
 
 RUN set -ex \
   && for key in \
